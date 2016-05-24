@@ -11,8 +11,7 @@ module.exports = function(grunt) {
           {
             dest: '.tmp/concat/js/flowtime.concat.js',
             src: [
-              'js/brav1toolbox.js',
-              'js/flowtime.js'
+              'js/**/*.js'
             ]
           }
         ]
@@ -23,7 +22,7 @@ module.exports = function(grunt) {
         preserveComments: 'some'
       },
       generated: {
-        
+
         files: [
           {
             dest: 'js/flowtime.min.js',
@@ -36,6 +35,10 @@ module.exports = function(grunt) {
       css: {
         files: 'css/**/*.css',
         tasks: ['autoprefixer']
+      },
+      js: {
+        files: 'js/**/*.js',
+        tasks: ['concat']
       }
     },
     autoprefixer: {
