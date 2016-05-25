@@ -9,6 +9,8 @@
 var Flowtime = (function ()
 {
 
+  var constants = get_constants();
+
   /**
    * test if the device is touch enbled
    */
