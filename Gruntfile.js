@@ -12,8 +12,11 @@ module.exports = function(grunt) {
             dest: '.tmp/concat/js/flowtime.concat.js',
             src: [
               'js/brav1toolbox.js',
+              'js/modules/_helpers.js',
               'js/modules/_constants.js',
               'js/modules/_variables.js',
+              'js/modules/_utils.js',
+              'js/modules/_navigation_matrix.js',
               'js/flowtime.js'
             ]
           }
