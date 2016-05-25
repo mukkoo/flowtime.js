@@ -24,33 +24,6 @@ var Flowtime = (function ()
   var pushHistory = window.history.pushState;
 
   /**
-   * application constants
-   */
-  var SECTION_CLASS                = "ft-section";
-  var SECTION_SELECTOR             = "." + SECTION_CLASS;
-  var PAGE_CLASS                   = "ft-page";
-  var PAGE_SELECTOR                = "." + PAGE_CLASS;
-  var FRAGMENT_CLASS               = "ft-fragment";
-  var FRAGMENT_SELECTOR            = "." + FRAGMENT_CLASS;
-  var FRAGMENT_REVEALED_CLASS      = "revealed";
-  var FRAGMENT_ACTUAL_CLASS        = "actual";
-  var FRAGMENT_REVEALED_TEMP_CLASS = "revealed-temp";
-  var DEFAULT_PROGRESS_CLASS       = "ft-default-progress";
-  var DEFAULT_PROGRESS_SELECTOR    = "." + DEFAULT_PROGRESS_CLASS;
-  var SECTION_THUMB_CLASS          = "ft-section-thumb";
-  var SECTION_THUMB_SELECTOR       = "." + SECTION_THUMB_CLASS;
-  var PAGE_THUMB_CLASS             = "ft-page-thumb";
-  var PAGE_THUMB_SELECTOR          = "." + PAGE_THUMB_CLASS;
-  var CROSS_DIRECTION_CLASS        = "ft-cross";
-  var SCROLL_THE_SECTION_CLASS     = "ft-scroll-the-section";
-
-  /**
-   * events
-   */
-
-  var NAVIGATION_EVENT = "flowtimenavigation";
-
-  /**
    * application variables
    */
   var ftContainer = document.querySelector(".flowtime");                                 // cached reference to .flowtime element
@@ -64,15 +37,15 @@ var Flowtime = (function ()
   var overviewCachedDest;                                                                // caches the destination before performing an overview zoom out for navigation back purposes
   var overviewFixedScaleFactor = 22;                                                     // fixed scale factor for overview variant
   var defaultProgress = null;                                                            // default progress bar reference
-  var sectionDataIdMax = 0;                
-                 
+  var sectionDataIdMax = 0;
+
   var _isOverview = false;                                                               // Boolean status for the overview
   var _useOverviewVariant = false;                                                       // use an alternate overview layout and navigation (experimental - useful in case of rendering issues)
   var _fragmentsOnSide = false;                                                          // enable or disable fragments navigation when navigating from sections
   var _fragmentsOnBack = true;                                                           // shows or hide fragments when navigating back to a page
   var _slideInPx = false;                                                                // calculate the slide position in px instead of %, use in case the % mode does not works
   var _twoStepsSlide = false;                                                            // not yet implemented! slides up or down before, then slides to the page
-  var _isLoopable = false;                 
+  var _isLoopable = false;
   var _showProgress = false;                                                             // show or hide the default progress indicator (leave false if you want to implement a custom progress indicator)
   var _clickerMode = false;                                                              // Used if presentation is being controlled by a "presenter" device (e.g., R400)
   var _parallaxInPx = false;                                                             // if false the parallax movement is calulated in % values, if true in pixels
@@ -81,7 +54,7 @@ var Flowtime = (function ()
   var _parallaxEnabled = document.querySelector(".parallax") != null;                    // performance tweak, if there is no elements with .parallax class disable the dom manipulation to boost performances
   var _mouseDragEnabled = false;                                                         // in enabled is possible to drag the presentation with the mouse pointer
   var _isScrollActive = true;                                                            // flags to enable or disable javascript input listeners for the navigation
-  var _isScrollable = true;                                                             
+  var _isScrollable = true;
   var _isKeyboardActive = true;
   var _isTouchActive = true;
   var _areLinksActive = true;
@@ -92,7 +65,7 @@ var Flowtime = (function ()
   var _debouncingDelay = 1000;
   var _transitionPaused = false;
   var _transitionTime = 500;                                                             // the page transition in milliseconds (keep in sync with the CSS transition value)
-  var _crossDirection = Brav1Toolbox.hasClass(ftContainer, CROSS_DIRECTION_CLASS);       // flag to set the cross direction layout and logic
+  var _crossDirection = Brav1Toolbox.hasClass(ftContainer, constants.CROSS_DIRECTION_CLASS);       // flag to set the cross direction layout and logic
   var _navigationCallback = undefined;
   var _transformProperty = Brav1Toolbox.getPrefixed("transform");
   var _supportsTransform = Brav1Toolbox.testCSS("transform");
@@ -110,7 +83,7 @@ var Flowtime = (function ()
   var _nearestToTop = false;
   var _rememberSectionsStatus = false;
   var _rememberSectionsLastPage = false;
-  var _scrollTheSection = Brav1Toolbox.hasClass(ftContainer, SCROLL_THE_SECTION_CLASS);  // flag to set the scroll the section logic
+  var _scrollTheSection = Brav1Toolbox.hasClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS);  // flag to set the scroll the section logic
   var _sectionsStatus = [];
   var _sectionsMaxPageDepth = 0;
   var _sectionsLastPageDepth = 0;
@@ -201,10 +174,10 @@ var Flowtime = (function ()
     function _updateMatrix() {
       sectionsArray = [];
       parallaxElements = [];
-      fragments = document.querySelectorAll(FRAGMENT_SELECTOR);
+      fragments = document.querySelectorAll(constants.FRAGMENT_SELECTOR);
       fragmentsArray = [];
-      sections = ftContainer.querySelectorAll(".flowtime > " + SECTION_SELECTOR);
-      allPages = ftContainer.querySelectorAll(".flowtime " + PAGE_SELECTOR);
+      sections = ftContainer.querySelectorAll(".flowtime > " + constants.SECTION_SELECTOR);
+      allPages = ftContainer.querySelectorAll(".flowtime " + constants.PAGE_SELECTOR);
       //
       for (var i = 0; i < sections.length; i++) {
         var pagesArray = [];
@@ -226,7 +199,7 @@ var Flowtime = (function ()
         section.index = i;
         section.setAttribute("id", "");
         //
-        pages = section.querySelectorAll(PAGE_SELECTOR);
+        pages = section.querySelectorAll(constants.PAGE_SELECTOR);
         pagesTotalLength += pages.length;
         pagesLength = Math.max(pagesLength, pages.length); // sets the pages max number for overview purposes
         for (var ii = 0; ii < pages.length; ii++) {
@@ -255,7 +228,7 @@ var Flowtime = (function ()
           //
           pagesArray.push(_sp);
           //
-          var subFragments = _sp.querySelectorAll(FRAGMENT_SELECTOR);
+          var subFragments = _sp.querySelectorAll(constants.FRAGMENT_SELECTOR);
           fragmentsArray[i][ii] = subFragments;
           fr[i][ii] = -1;
         }
@@ -306,13 +279,13 @@ var Flowtime = (function ()
     }
 
     /*
-##     ## ########  ########     ###    ######## ########  #######  ######## ########  ######  ######## ########  ######  
-##     ## ##     ## ##     ##   ## ##      ##    ##       ##     ## ##       ##       ##    ## ##          ##    ##    ## 
-##     ## ##     ## ##     ##  ##   ##     ##    ##       ##     ## ##       ##       ##       ##          ##    ##       
-##     ## ########  ##     ## ##     ##    ##    ######   ##     ## ######   ######    ######  ######      ##     ######  
-##     ## ##        ##     ## #########    ##    ##       ##     ## ##       ##             ## ##          ##          ## 
-##     ## ##        ##     ## ##     ##    ##    ##       ##     ## ##       ##       ##    ## ##          ##    ##    ## 
- #######  ##        ########  ##     ##    ##    ########  #######  ##       ##        ######  ########    ##     ######  
+##     ## ########  ########     ###    ######## ########  #######  ######## ########  ######  ######## ########  ######
+##     ## ##     ## ##     ##   ## ##      ##    ##       ##     ## ##       ##       ##    ## ##          ##    ##    ##
+##     ## ##     ## ##     ##  ##   ##     ##    ##       ##     ## ##       ##       ##       ##          ##    ##
+##     ## ########  ##     ## ##     ##    ##    ######   ##     ## ######   ######    ######  ######      ##     ######
+##     ## ##        ##     ## #########    ##    ##       ##     ## ##       ##             ## ##          ##          ##
+##     ## ##        ##     ## ##     ##    ##    ##       ##     ## ##       ##       ##    ## ##          ##    ##    ##
+ #######  ##        ########  ##     ##    ##    ########  #######  ##       ##        ######  ########    ##     ######
     */
 
     /**
@@ -337,7 +310,7 @@ var Flowtime = (function ()
           _sp.x = _spParent.offsetLeft;
           _sp.y = _sp.offsetTop - (yGlobal + yGlobalDelta);
         }
-         
+
       }
     }
 
@@ -537,10 +510,10 @@ var Flowtime = (function ()
         f = fr[fp][fsp] += 1;
       }
       for (var i = 0; i <= f; i++) {
-        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][i], FRAGMENT_REVEALED_CLASS);
-        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], FRAGMENT_ACTUAL_CLASS);
+        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_REVEALED_CLASS);
+        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_ACTUAL_CLASS);
       }
-      Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], FRAGMENT_ACTUAL_CLASS);
+      Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], constants.FRAGMENT_ACTUAL_CLASS);
     }
 
     /**
@@ -559,14 +532,14 @@ var Flowtime = (function ()
       }
       for (var i = 0; i < fragmentsArray[fp][fsp].length; i++) {
         if (i >= f) {
-          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], FRAGMENT_REVEALED_CLASS);
-          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], FRAGMENT_REVEALED_TEMP_CLASS);
+          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_REVEALED_CLASS);
+          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_REVEALED_TEMP_CLASS);
         }
-        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], FRAGMENT_ACTUAL_CLASS);
+        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_ACTUAL_CLASS);
       }
       f -= 1;
       if (f >= 0) {
-        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], FRAGMENT_ACTUAL_CLASS);
+        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], constants.FRAGMENT_ACTUAL_CLASS);
       }
       fr[fp][fsp] = f;
     }
@@ -577,7 +550,7 @@ var Flowtime = (function ()
      */
     function _showFragments() {
       for (var i = 0; i < fragments.length; i++) {
-        Brav1Toolbox.addClass(fragments[i], FRAGMENT_REVEALED_TEMP_CLASS);
+        Brav1Toolbox.addClass(fragments[i], constants.FRAGMENT_REVEALED_TEMP_CLASS);
       }
     }
 
@@ -587,7 +560,7 @@ var Flowtime = (function ()
      */
     function _hideFragments() {
       for (var i = 0; i < fragments.length; i++) {
-        Brav1Toolbox.removeClass(fragments[i], FRAGMENT_REVEALED_TEMP_CLASS);
+        Brav1Toolbox.removeClass(fragments[i], constants.FRAGMENT_REVEALED_TEMP_CLASS);
       }
     }
 
@@ -1085,16 +1058,16 @@ var Flowtime = (function ()
       // pages in oveview mode
       if (_isOverview) {
         var dest = e.target;
-        while (dest && !Brav1Toolbox.hasClass(dest, PAGE_CLASS)) {
+        while (dest && !Brav1Toolbox.hasClass(dest, constants.PAGE_CLASS)) {
           dest = dest.parentNode;
         }
-        if (Brav1Toolbox.hasClass(dest, PAGE_CLASS)) {
+        if (Brav1Toolbox.hasClass(dest, constants.PAGE_CLASS)) {
           e.preventDefault();
           navigateTo(dest, null, true);
         }
       }
       // thumbs in the default progress indicator
-      if (Brav1Toolbox.hasClass(e.target, PAGE_THUMB_CLASS)) {
+      if (Brav1Toolbox.hasClass(e.target, constants.PAGE_THUMB_CLASS)) {
         e.preventDefault();
         var pTo = Number(unsafeAttr(e.target.getAttribute("data-section")));
         var spTo = Number(unsafeAttr(e.target.getAttribute("data-page")));
@@ -1452,22 +1425,22 @@ var Flowtime = (function ()
     if (h.length > 0) {
       var aHash = h.replace("#/", "").split("/");
       if (aHash.length > 0) {
-        var dataProgSection = document.querySelectorAll(SECTION_SELECTOR + "[data-prog=__" + aHash[0] + "]");
-        var dataIdSection = document.querySelectorAll(SECTION_SELECTOR + "[data-id=__" + aHash[0] + "]");
+        var dataProgSection = document.querySelectorAll(constants.SECTION_SELECTOR + "[data-prog=__" + aHash[0] + "]");
+        var dataIdSection = document.querySelectorAll(constants.SECTION_SELECTOR + "[data-id=__" + aHash[0] + "]");
         var ps = dataProgSection.length > 0 ? dataProgSection : dataIdSection;
         if (ps != null) {
           for (var i = 0; i < ps.length; i++) {
             var p = ps[i];
             var sp = null;
             if (aHash.length > 1) {
-              sp = p.querySelector(PAGE_SELECTOR + "[data-prog=__" + aHash[1] + "]") || p.querySelector(PAGE_SELECTOR + "[data-id=__" + aHash[1] + "]");
+              sp = p.querySelector(constants.PAGE_SELECTOR + "[data-prog=__" + aHash[1] + "]") || p.querySelector(constants.PAGE_SELECTOR + "[data-id=__" + aHash[1] + "]");
             }
             if (sp !== null) {
               break;
             }
           }
           if (sp == null && p) {
-            sp = p.querySelector(PAGE_SELECTOR);
+            sp = p.querySelector(constants.PAGE_SELECTOR);
           }
         }
         return sp;
@@ -1477,13 +1450,13 @@ var Flowtime = (function ()
   }
 
 /*
-##     ## ########  ########     ###    ######## ########    ##    ##    ###    ##     ## ####  ######      ###    ######## ####  #######  ##    ## 
-##     ## ##     ## ##     ##   ## ##      ##    ##          ###   ##   ## ##   ##     ##  ##  ##    ##    ## ##      ##     ##  ##     ## ###   ## 
-##     ## ##     ## ##     ##  ##   ##     ##    ##          ####  ##  ##   ##  ##     ##  ##  ##         ##   ##     ##     ##  ##     ## ####  ## 
-##     ## ########  ##     ## ##     ##    ##    ######      ## ## ## ##     ## ##     ##  ##  ##   #### ##     ##    ##     ##  ##     ## ## ## ## 
-##     ## ##        ##     ## #########    ##    ##          ##  #### #########  ##   ##   ##  ##    ##  #########    ##     ##  ##     ## ##  #### 
-##     ## ##        ##     ## ##     ##    ##    ##          ##   ### ##     ##   ## ##    ##  ##    ##  ##     ##    ##     ##  ##     ## ##   ### 
- #######  ##        ########  ##     ##    ##    ########    ##    ## ##     ##    ###    ####  ######   ##     ##    ##    ####  #######  ##    ## 
+##     ## ########  ########     ###    ######## ########    ##    ##    ###    ##     ## ####  ######      ###    ######## ####  #######  ##    ##
+##     ## ##     ## ##     ##   ## ##      ##    ##          ###   ##   ## ##   ##     ##  ##  ##    ##    ## ##      ##     ##  ##     ## ###   ##
+##     ## ##     ## ##     ##  ##   ##     ##    ##          ####  ##  ##   ##  ##     ##  ##  ##         ##   ##     ##     ##  ##     ## ####  ##
+##     ## ########  ##     ## ##     ##    ##    ######      ## ## ## ##     ## ##     ##  ##  ##   #### ##     ##    ##     ##  ##     ## ## ## ##
+##     ## ##        ##     ## #########    ##    ##          ##  #### #########  ##   ##   ##  ##    ##  #########    ##     ##  ##     ## ##  ####
+##     ## ##        ##     ## ##     ##    ##    ##          ##   ### ##     ##   ## ##    ##  ##    ##  ##     ##    ##     ##  ##     ## ##   ###
+ #######  ##        ########  ##     ##    ##    ########    ##    ## ##     ##    ###    ####  ######   ##     ##    ##    ####  #######  ##    ##
 */
 
   /**
@@ -1587,7 +1560,7 @@ var Flowtime = (function ()
       if (NavigationMatrix.getCurrentPage() != null) {
         dest = NavigationMatrix.getCurrentPage();
       } else {
-        dest = document.querySelector(PAGE_SELECTOR);
+        dest = document.querySelector(constants.PAGE_SELECTOR);
       }
       push = true;
     }
@@ -1680,7 +1653,7 @@ var Flowtime = (function ()
                         clickerMode      : _clickerMode,
                         isAutoplay       : _isAutoplay
                       }
-      Brav1Toolbox.dispatchEvent(NAVIGATION_EVENT, eventData);
+      Brav1Toolbox.dispatchEvent(constants.NAVIGATION_EVENT, eventData);
       //
       if (_navigationCallback !== undefined) {
         _navigationCallback(eventData);
@@ -1691,13 +1664,13 @@ var Flowtime = (function ()
   }
 
 /*
-##    ##    ###    ##     ## ####  ######      ###    ######## ######## 
-###   ##   ## ##   ##     ##  ##  ##    ##    ## ##      ##    ##       
-####  ##  ##   ##  ##     ##  ##  ##         ##   ##     ##    ##       
-## ## ## ##     ## ##     ##  ##  ##   #### ##     ##    ##    ######   
-##  #### #########  ##   ##   ##  ##    ##  #########    ##    ##       
-##   ### ##     ##   ## ##    ##  ##    ##  ##     ##    ##    ##       
-##    ## ##     ##    ###    ####  ######   ##     ##    ##    ######## 
+##    ##    ###    ##     ## ####  ######      ###    ######## ########
+###   ##   ## ##   ##     ##  ##  ##    ##    ## ##      ##    ##
+####  ##  ##   ##  ##     ##  ##  ##         ##   ##     ##    ##
+## ## ## ##     ## ##     ##  ##  ##   #### ##     ##    ##    ######
+##  #### #########  ##   ##   ##  ##    ##  #########    ##    ##
+##   ### ##     ##   ## ##    ##  ##    ##  ##     ##    ##    ##
+##    ## ##     ##    ###    ####  ######   ##     ##    ##    ########
 */
 
   /**
@@ -1842,19 +1815,19 @@ var Flowtime = (function ()
     var domFragment = document.createDocumentFragment();
     // create the progress container div
     defaultProgress = document.createElement("div");
-    defaultProgress.className = DEFAULT_PROGRESS_CLASS + (_crossDirection === true ? " ft-cross" : "");
+    defaultProgress.className = constants.DEFAULT_PROGRESS_CLASS + (_crossDirection === true ? " ft-cross" : "");
     domFragment.appendChild(defaultProgress);
     // loop through sections
     for (var i = 0; i < NavigationMatrix.getSectionsLength(); i++) {
       var pDiv = document.createElement("div");
         pDiv.setAttribute("data-section", "__" + i);
-        pDiv.className = SECTION_THUMB_CLASS;
+        pDiv.className = constants.SECTION_THUMB_CLASS;
         Brav1Toolbox.addClass(pDiv, "thumb-section-" + i);
       // loop through pages
       var spArray = NavigationMatrix.getPages(i)
       for (var ii = 0; ii < spArray.length; ii++) {
         var spDiv = document.createElement("div");
-          spDiv.className = PAGE_THUMB_CLASS;
+          spDiv.className = constants.PAGE_THUMB_CLASS;
           spDiv.setAttribute("data-section", "__" + i);
           spDiv.setAttribute("data-page", "__" + ii);
           Brav1Toolbox.addClass(spDiv, "thumb-page-" + ii);
@@ -1875,7 +1848,7 @@ var Flowtime = (function ()
 
   function updateProgress() {
     if (defaultProgress != null) {
-      var spts = defaultProgress.querySelectorAll(PAGE_THUMB_SELECTOR);
+      var spts = defaultProgress.querySelectorAll(constants.PAGE_THUMB_SELECTOR);
       for (var i = 0; i < spts.length; i++) {
         var spt = spts[i];
         var pTo = Number(unsafeAttr(spt.getAttribute("data-section")));
@@ -2289,9 +2262,9 @@ var Flowtime = (function ()
           var p = o.section;
           var sp = o.page;
           if (p != null && p != undefined) {
-            var pd = document.querySelector(SECTION_SELECTOR + "[data-id=" + safeAttr(p) + "]");
+            var pd = document.querySelector(constants.SECTION_SELECTOR + "[data-id=" + safeAttr(p) + "]");
             if (sp != null && sp != undefined) {
-              var spd = pd.querySelector(PAGE_SELECTOR + "[data-id=" + safeAttr(sp) + "]");
+              var spd = pd.querySelector(constants.PAGE_SELECTOR + "[data-id=" + safeAttr(sp) + "]");
               if (spd != null) {
                 navigateTo(spd);
                 return;
@@ -2457,16 +2430,16 @@ var Flowtime = (function ()
   function _setCrossDirection(v) {
     if (_crossDirection !== v) {
       _crossDirection = v === true ? true : false;
-      if (!Brav1Toolbox.hasClass(ftContainer, CROSS_DIRECTION_CLASS) && _crossDirection === true) {
-        Brav1Toolbox.addClass(ftContainer, CROSS_DIRECTION_CLASS);
-      } else if (Brav1Toolbox.hasClass(ftContainer, CROSS_DIRECTION_CLASS) && _crossDirection !== true) {
-        Brav1Toolbox.removeClass(ftContainer, CROSS_DIRECTION_CLASS);
+      if (!Brav1Toolbox.hasClass(ftContainer, constants.CROSS_DIRECTION_CLASS) && _crossDirection === true) {
+        Brav1Toolbox.addClass(ftContainer, constants.CROSS_DIRECTION_CLASS);
+      } else if (Brav1Toolbox.hasClass(ftContainer, constants.CROSS_DIRECTION_CLASS) && _crossDirection !== true) {
+        Brav1Toolbox.removeClass(ftContainer, constants.CROSS_DIRECTION_CLASS);
       }
       if (defaultProgress) {
-        if (!Brav1Toolbox.hasClass(defaultProgress, CROSS_DIRECTION_CLASS) && _crossDirection === true) {
-          Brav1Toolbox.addClass(defaultProgress, CROSS_DIRECTION_CLASS);
-        } else if (Brav1Toolbox.hasClass(defaultProgress, CROSS_DIRECTION_CLASS) && _crossDirection !== true) {
-          Brav1Toolbox.removeClass(defaultProgress, CROSS_DIRECTION_CLASS);
+        if (!Brav1Toolbox.hasClass(defaultProgress, constants.CROSS_DIRECTION_CLASS) && _crossDirection === true) {
+          Brav1Toolbox.addClass(defaultProgress, constants.CROSS_DIRECTION_CLASS);
+        } else if (Brav1Toolbox.hasClass(defaultProgress, constants.CROSS_DIRECTION_CLASS) && _crossDirection !== true) {
+          Brav1Toolbox.removeClass(defaultProgress, constants.CROSS_DIRECTION_CLASS);
         }
       }
       //
@@ -2478,10 +2451,10 @@ var Flowtime = (function ()
   function _setScrollTheSection(v) {
     if (_scrollTheSection !== v) {
       _scrollTheSection = v === true ? true : false;
-      if (!Brav1Toolbox.hasClass(ftContainer, SCROLL_THE_SECTION_CLASS) && _scrollTheSection === true) {
-        Brav1Toolbox.addClass(ftContainer, SCROLL_THE_SECTION_CLASS);
-      } else if (Brav1Toolbox.hasClass(ftContainer, SCROLL_THE_SECTION_CLASS) && _scrollTheSection !== true) {
-        Brav1Toolbox.removeClass(ftContainer, SCROLL_THE_SECTION_CLASS);
+      if (!Brav1Toolbox.hasClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS) && _scrollTheSection === true) {
+        Brav1Toolbox.addClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS);
+      } else if (Brav1Toolbox.hasClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS) && _scrollTheSection !== true) {
+        Brav1Toolbox.removeClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS);
       }
       //
       NavigationMatrix.updateOffsets();
