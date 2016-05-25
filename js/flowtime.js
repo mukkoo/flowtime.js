@@ -9,14 +9,17 @@
 var Flowtime = (function ()
 {
 
-  var constants = get_constants();
+  /**
+    * Init constants and variables defined in modules
+    */
+  var ft_constants = get_ft_constants();
+  var ft_variables = get_ft_variables();
 
   /**
    * test if the device is touch enbled
    */
-  var isTouchDevice = false;
   if (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0)) {
-      isTouchDevice = true;
+      ft_variables.isTouchDevice = true;
   }
 
   /**
@@ -25,89 +28,23 @@ var Flowtime = (function ()
    */
   var pushHistory = window.history.pushState;
 
-  /**
-   * application variables
-   */
-  var ftContainer = document.querySelector(".flowtime");                                 // cached reference to .flowtime element
-  var ftParent = ftContainer.parentNode;                                                 // cached reference to .flowtime parent element
-  var html = document.querySelector("html");                                             // cached reference to html element
-  var body = document.querySelector("body");                                             // cached reference to body element
-  var useHash = false;                                                                   // if true the engine uses only the hash change logic
-  var currentHash = "";                                                                  // the hash string of the current section / page pair
-  var pastIndex = { section:0, page:0 };                                                 // section and page indexes of the past page
-  var siteName = document.title;                                                         // cached base string for the site title
-  var overviewCachedDest;                                                                // caches the destination before performing an overview zoom out for navigation back purposes
-  var overviewFixedScaleFactor = 22;                                                     // fixed scale factor for overview variant
-  var defaultProgress = null;                                                            // default progress bar reference
-  var sectionDataIdMax = 0;
-
-  var _isOverview = false;                                                               // Boolean status for the overview
-  var _useOverviewVariant = false;                                                       // use an alternate overview layout and navigation (experimental - useful in case of rendering issues)
-  var _fragmentsOnSide = false;                                                          // enable or disable fragments navigation when navigating from sections
-  var _fragmentsOnBack = true;                                                           // shows or hide fragments when navigating back to a page
-  var _slideInPx = false;                                                                // calculate the slide position in px instead of %, use in case the % mode does not works
-  var _twoStepsSlide = false;                                                            // not yet implemented! slides up or down before, then slides to the page
-  var _isLoopable = false;
-  var _showProgress = false;                                                             // show or hide the default progress indicator (leave false if you want to implement a custom progress indicator)
-  var _clickerMode = false;                                                              // Used if presentation is being controlled by a "presenter" device (e.g., R400)
-  var _parallaxInPx = false;                                                             // if false the parallax movement is calulated in % values, if true in pixels
-  var _defaultParallaxX = 50;                                                            // the default parallax horizontal value used when no data-parallax value were specified
-  var _defaultParallaxY = 50;                                                            // the default parallax vertical value used when no data-parallax value were specified
-  var _parallaxEnabled = document.querySelector(".parallax") != null;                    // performance tweak, if there is no elements with .parallax class disable the dom manipulation to boost performances
-  var _mouseDragEnabled = false;                                                         // in enabled is possible to drag the presentation with the mouse pointer
-  var _isScrollActive = true;                                                            // flags to enable or disable javascript input listeners for the navigation
-  var _isScrollable = true;
-  var _isKeyboardActive = true;
-  var _isTouchActive = true;
-  var _areLinksActive = true;
-  var _isScrolling = false;
-  var _momentumScrollTimeout = 0;
-  var _momentumScrollDelay = 2000;
-  var _fireEvent = true;
-  var _debouncingDelay = 1000;
-  var _transitionPaused = false;
-  var _transitionTime = 500;                                                             // the page transition in milliseconds (keep in sync with the CSS transition value)
-  var _crossDirection = Brav1Toolbox.hasClass(ftContainer, constants.CROSS_DIRECTION_CLASS);       // flag to set the cross direction layout and logic
-  var _navigationCallback = undefined;
-  var _transformProperty = Brav1Toolbox.getPrefixed("transform");
-  var _supportsTransform = Brav1Toolbox.testCSS("transform");
-  var _toSectionsFromPages = true;                                                       // if false prevents the previous page and next page commands from navigating to previous and next sections
-
-  var xGlobal = 0;
-  var yGlobal = 0;
-  var xGlobalDelta = 0;
-  var yGlobalDelta = 0;
-
-  // section navigation modifiers
-
-  var _gridNavigation = false;                                                           // if true navigation with right or left arrow go to the first page of the section
-  var _backFromPageToTop = false;                                                        // if true, when going back from the first page of a section to the previous section, go to the first page of the new section
-  var _nearestToTop = false;
-  var _rememberSectionsStatus = false;
-  var _rememberSectionsLastPage = false;
-  var _scrollTheSection = Brav1Toolbox.hasClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS);  // flag to set the scroll the section logic
-  var _sectionsStatus = [];
-  var _sectionsMaxPageDepth = 0;
-  var _sectionsLastPageDepth = 0;
-  var _showErrors = false;
-
 
   /**
    * set the transition time reading from CSS value with a fallback default
    */
   (function initTransitionTime() {
-    var tt = Brav1Toolbox.getCSSValue(ftContainer, "transitionDuration");
+    var tt = Brav1Toolbox.getCSSValue(ft_variables.ftContainer, "transitionDuration");
     var ttInt = parseFloat(tt);
     var unit = tt.replace("" + ttInt, "");
     if (!isNaN(ttInt) && ttInt > 0) {
       if (unit === "s") {
-        _transitionTime = ttInt * 1000;
+        ft_variables._transitionTime = ttInt * 1000;
       } else if (unit === "ms") {
-        _transitionTime = ttInt;
+        ft_variables._transitionTime = ttInt;
       }
     }
-    _setTransitionTime(_transitionTime);
-    _momentumScrollDelay = _transitionTime * 4;
+    _setTransitionTime(ft_variables._transitionTime);
+    ft_variables._momentumScrollDelay = ft_variables._transitionTime * 4;
   })();
 
   /**
@@ -129,7 +66,7 @@ var Flowtime = (function ()
    * needed for application scrolling
    */
   if (browserSupport) {
-    Brav1Toolbox.addClass(ftParent, "ft-absolute-nav");
+    Brav1Toolbox.addClass(ft_variables.ftParent, "ft-absolute-nav");
   }
 
   window.onload = function() {
@@ -176,10 +113,10 @@ var Flowtime = (function ()
     function _updateMatrix() {
       sectionsArray = [];
       parallaxElements = [];
-      fragments = document.querySelectorAll(constants.FRAGMENT_SELECTOR);
+      fragments = document.querySelectorAll(ft_constants.FRAGMENT_SELECTOR);
       fragmentsArray = [];
-      sections = ftContainer.querySelectorAll(".flowtime > " + constants.SECTION_SELECTOR);
-      allPages = ftContainer.querySelectorAll(".flowtime " + constants.PAGE_SELECTOR);
+      sections = ft_variables.ftContainer.querySelectorAll(".flowtime > " + ft_constants.SECTION_SELECTOR);
+      allPages = ft_variables.ftContainer.querySelectorAll(".flowtime " + ft_constants.PAGE_SELECTOR);
       //
       for (var i = 0; i < sections.length; i++) {
         var pagesArray = [];
@@ -187,21 +124,21 @@ var Flowtime = (function ()
         fragmentsArray[i] = [];
         fr[i] = [];
         //
-        sectionDataIdMax += 1;
+        ft_variables.sectionDataIdMax += 1;
         if (section.getAttribute("data-id")) {
           section.setAttribute("data-id", "__" + unsafeAttr(section.getAttribute("data-id"))); // prevents attributes starting with a number
         } else {
-          section.setAttribute("data-id", "__" + sectionDataIdMax);
+          section.setAttribute("data-id", "__" + ft_variables.sectionDataIdMax);
         }
         if (section.getAttribute("data-prog")) {
           section.setAttribute("data-prog", "__" + unsafeAttr(section.getAttribute("data-prog"))); // prevents attributes starting with a number
         } else {
-          section.setAttribute("data-prog", "__" + sectionDataIdMax);
+          section.setAttribute("data-prog", "__" + ft_variables.sectionDataIdMax);
         }
         section.index = i;
         section.setAttribute("id", "");
         //
-        pages = section.querySelectorAll(constants.PAGE_SELECTOR);
+        pages = section.querySelectorAll(ft_constants.PAGE_SELECTOR);
         pagesTotalLength += pages.length;
         pagesLength = Math.max(pagesLength, pages.length); // sets the pages max number for overview purposes
         for (var ii = 0; ii < pages.length; ii++) {
@@ -230,7 +167,7 @@ var Flowtime = (function ()
           //
           pagesArray.push(_sp);
           //
-          var subFragments = _sp.querySelectorAll(constants.FRAGMENT_SELECTOR);
+          var subFragments = _sp.querySelectorAll(ft_constants.FRAGMENT_SELECTOR);
           fragmentsArray[i][ii] = subFragments;
           fr[i][ii] = -1;
         }
@@ -247,7 +184,7 @@ var Flowtime = (function ()
      * data are stored on a multi dimensional array ordered per section and per page to easily manage the position
      */
     function setParallax(page, sectionIndex, pageIndex) {
-      if (_parallaxEnabled) {
+      if (ft_variables._parallaxEnabled) {
         if (parallaxElements[sectionIndex] == undefined) {
           parallaxElements[sectionIndex] = [];
         }
@@ -259,8 +196,8 @@ var Flowtime = (function ()
         if (pxs.length > 0) {
           for (var i = 0; i < pxs.length; i++) {
             var el = pxs[i];
-            var pX = _defaultParallaxX;
-            var pY = _defaultParallaxY;
+            var pX = ft_variables._defaultParallaxX;
+            var pY = ft_variables._defaultParallaxY;
             if (el.getAttribute("data-parallax") != null) {
               var pValues = el.getAttribute("data-parallax").split(",");
               pX = pY = pValues[0];
@@ -294,23 +231,23 @@ var Flowtime = (function ()
      * cache the position for every page, useful when navigatin in pixels or when attaching a page after scrolling
      */
     function _updateOffsets () {
-      xGlobal = ftContainer.offsetLeft;
-      yGlobal = ftContainer.offsetTop;
+      ft_variables.xGlobal = ft_variables.ftContainer.offsetLeft;
+      ft_variables.yGlobal = ft_variables.ftContainer.offsetTop;
       for (var i = 0; i < allPages.length; i++) {
         var _sp = allPages[i];
         var _spParent = _sp.offsetParent;
         //
         if (i === 0) {
-          xGlobalDelta = _sp.offsetLeft - xGlobal;
-          yGlobalDelta = _sp.offsetTop - yGlobal;
+          ft_variables.xGlobalDelta = _sp.offsetLeft - ft_variables.xGlobal;
+          ft_variables.yGlobalDelta = _sp.offsetTop - ft_variables.yGlobal;
         }
         //  _
-        if (_crossDirection === true) {
-          _sp.x = _sp.offsetLeft - (xGlobal + xGlobalDelta);
+        if (ft_variables._crossDirection === true) {
+          _sp.x = _sp.offsetLeft - (ft_variables.xGlobal + ft_variables.xGlobalDelta);
           _sp.y = _spParent.offsetTop;
         } else {
           _sp.x = _spParent.offsetLeft;
-          _sp.y = _sp.offsetTop - (yGlobal + yGlobalDelta);
+          _sp.y = _sp.offsetTop - (ft_variables.yGlobal + ft_variables.yGlobalDelta);
         }
 
       }
@@ -319,35 +256,35 @@ var Flowtime = (function ()
     /**
      * returns the next section in navigation
      * @param top Boolean if true the next page will be the first page in the next array; if false the next section will be the same index page in the next array
-     * @param fos Boolean value of _fragmentsOnSide
+     * @param fos Boolean value of ft_variables._fragmentsOnSide
      */
     function _getNextSection(top, fos) {
       var sub = sp;
       //
-      var toTop = _isOverview === true ? false : top;
+      var toTop = ft_variables._isOverview === true ? false : top;
       if (fos === true && fragmentsArray[p][sp].length > 0 && fr[p][sp] < fragmentsArray[p][sp].length - 1 && toTop !== true && io === false) {
         _showFragment(p, sp);
       } else {
         sub = 0;
         if (toTop === true && p + 1 <= sectionsArray.length - 1) {
           sub = 0;
-        } else if (toTop !== true || _fragmentsOnBack === true || p + 1 > sectionsArray.length - 1) {
+        } else if (toTop !== true || ft_variables._fragmentsOnBack === true || p + 1 > sectionsArray.length - 1) {
           sub = sp;
         }
         var pTemp = Math.min(p + 1, sectionsArray.length - 1);
-        if (_isLoopable == true && pTemp === p) {
+        if (ft_variables._isLoopable == true && pTemp === p) {
           p = 0;
         } else {
           p = pTemp;
         }
         //
-        if (!_isOverview) {
-          if (_rememberSectionsStatus === true && _sectionsStatus[p] !== undefined) {
-            sub = _sectionsStatus[p];
+        if (!ft_variables._isOverview) {
+          if (ft_variables._rememberSectionsStatus === true && ft_variables._sectionsStatus[p] !== undefined) {
+            sub = ft_variables._sectionsStatus[p];
           }
           //
-          if (_rememberSectionsLastPage === true) {
-            sub = _sectionsLastPageDepth;
+          if (ft_variables._rememberSectionsLastPage === true) {
+            sub = ft_variables._sectionsLastPageDepth;
           }
         }
         //
@@ -359,36 +296,36 @@ var Flowtime = (function ()
     /**
      * returns the prev section in navigation
      * @param top Boolean if true the next section will be the first page in the prev array; if false the prev section will be the same index page in the prev array
-     * @param fos Boolean value of _fragmentsOnSide
+     * @param fos Boolean value of ft_variables._fragmentsOnSide
      */
     function _getPrevSection(top, fos) {
       var sub = sp;
       //
-      var toTop = _isOverview === true ? false : top;
-      if (fos === true && fragmentsArray[p][sp].length > 0 && fr[p][sp] >= 0 && toTop !== true && _isOverview === false) {
+      var toTop = ft_variables._isOverview === true ? false : top;
+      if (fos === true && fragmentsArray[p][sp].length > 0 && fr[p][sp] >= 0 && toTop !== true && ft_variables._isOverview === false) {
         _hideFragment(p, sp);
       } else {
         var sub = 0;
         sub = 0;
         if (toTop === true && p - 1 >= 0) {
           sub = 0;
-        } else if (toTop !== true || _fragmentsOnBack === true || p - 1 < 0) {
+        } else if (toTop !== true || ft_variables._fragmentsOnBack === true || p - 1 < 0) {
           sub = sp;
         }
         var pTemp = Math.max(p - 1, 0);
-        if (_isLoopable === true && pTemp === p) {
+        if (ft_variables._isLoopable === true && pTemp === p) {
           p = sectionsArray.length - 1;
         } else {
           p = pTemp;
         }
         //
-        if (!_isOverview) {
-          if (_rememberSectionsStatus === true && _sectionsStatus[p] >= 0) {
-            sub = _sectionsStatus[p];
+        if (!ft_variables._isOverview) {
+          if (ft_variables._rememberSectionsStatus === true && ft_variables._sectionsStatus[p] >= 0) {
+            sub = ft_variables._sectionsStatus[p];
           }
           //
-          if (_rememberSectionsLastPage === true) {
-            sub = _sectionsLastPageDepth;
+          if (ft_variables._rememberSectionsLastPage === true) {
+            sub = ft_variables._sectionsLastPageDepth;
           }
         }
         //
@@ -407,7 +344,7 @@ var Flowtime = (function ()
     function _getNearestPage(pg, sub) {
       var nsp = pg[sub];
       if (nsp === undefined) {
-        if (_nearestToTop === true) {
+        if (ft_variables._nearestToTop === true) {
           nsp = pg[0];
           sub = 0;
         } else {
@@ -421,7 +358,7 @@ var Flowtime = (function ()
         }
       }
       sp = sub;
-      if (!_isOverview) {
+      if (!ft_variables._isOverview) {
         _updateFragments();
       }
       return hiliteOrNavigate(nsp);
@@ -430,20 +367,20 @@ var Flowtime = (function ()
     /**
      * returns the next page in navigation
      * if the next page is not in the current section array returns the first page in the next section array
-     * if _toSectionsFromPages is false and the next page is not in the current section then returns false
+     * if ft_variables._toSectionsFromPages is false and the next page is not in the current section then returns false
      * @param jump  Boolean if true jumps over the fragments directly to the next page
      */
     function _getNextPage(jump) {
-      if (fragmentsArray[p][sp].length > 0 && fr[p][sp] < fragmentsArray[p][sp].length - 1 && jump !== true && _isOverview === false) {
+      if (fragmentsArray[p][sp].length > 0 && fr[p][sp] < fragmentsArray[p][sp].length - 1 && jump !== true && ft_variables._isOverview === false) {
         _showFragment(p, sp);
       } else {
         if (sectionsArray[p][sp + 1] === undefined) {
-          if (_toSectionsFromPages === false) {
+          if (ft_variables._toSectionsFromPages === false) {
             return false;
           } else if (sectionsArray[p + 1] !== undefined) {
             p += 1;
             sp = 0;
-          } else if (sectionsArray[p + 1] === undefined && _isLoopable === true) {
+          } else if (sectionsArray[p + 1] === undefined && ft_variables._isLoopable === true) {
             p = 0;
             sp = 0;
           }
@@ -457,22 +394,22 @@ var Flowtime = (function ()
     /**
      * returns the prev page in navigation
      * if the prev page is not in the current section array returns the last page in the prev section array
-     * if _toSectionsFromPages is false and the prev page is not in the current section then returns false
+     * if ft_variables._toSectionsFromPages is false and the prev page is not in the current section then returns false
      * @param jump  Boolean if true jumps over the fragments directly to the prev page
      */
     function _getPrevPage(jump) {
-      if (fragmentsArray[p][sp].length > 0 && fr[p][sp] >= 0 && jump !== true && _isOverview === false) {
+      if (fragmentsArray[p][sp].length > 0 && fr[p][sp] >= 0 && jump !== true && ft_variables._isOverview === false) {
         _hideFragment(p, sp);
       } else {
         if (sp == 0) {
-          if (_toSectionsFromPages === false) {
+          if (ft_variables._toSectionsFromPages === false) {
             return false;
           } else if (sectionsArray[p - 1] != undefined) {
             p -= 1;
-            sp = _backFromPageToTop === true ? 0 : sectionsArray[p].length - 1;
-          } else if (sectionsArray[p - 1] == undefined && _isLoopable === true) {
+            sp = ft_variables._backFromPageToTop === true ? 0 : sectionsArray[p].length - 1;
+          } else if (sectionsArray[p - 1] == undefined && ft_variables._isLoopable === true) {
             p = sectionsArray.length - 1;
-            sp = _backFromPageToTop === true ? 0 : sectionsArray[p].length - 1;
+            sp = ft_variables._backFromPageToTop === true ? 0 : sectionsArray[p].length - 1;
           }
         } else {
           sp = Math.max(sp - 1, 0);
@@ -488,7 +425,7 @@ var Flowtime = (function ()
      * @param d HTMLElement the candidate destination
      */
     function hiliteOrNavigate(d) {
-      if (_isOverview == true) {
+      if (ft_variables._isOverview == true) {
         _switchActivePage(d);
         return;
       } else {
@@ -512,10 +449,10 @@ var Flowtime = (function ()
         f = fr[fp][fsp] += 1;
       }
       for (var i = 0; i <= f; i++) {
-        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_REVEALED_CLASS);
-        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_ACTUAL_CLASS);
+        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][i], ft_constants.FRAGMENT_REVEALED_CLASS);
+        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], ft_constants.FRAGMENT_ACTUAL_CLASS);
       }
-      Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], constants.FRAGMENT_ACTUAL_CLASS);
+      Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], ft_constants.FRAGMENT_ACTUAL_CLASS);
     }
 
     /**
@@ -534,14 +471,14 @@ var Flowtime = (function ()
       }
       for (var i = 0; i < fragmentsArray[fp][fsp].length; i++) {
         if (i >= f) {
-          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_REVEALED_CLASS);
-          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_REVEALED_TEMP_CLASS);
+          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], ft_constants.FRAGMENT_REVEALED_CLASS);
+          Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], ft_constants.FRAGMENT_REVEALED_TEMP_CLASS);
         }
-        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], constants.FRAGMENT_ACTUAL_CLASS);
+        Brav1Toolbox.removeClass(fragmentsArray[fp][fsp][i], ft_constants.FRAGMENT_ACTUAL_CLASS);
       }
       f -= 1;
       if (f >= 0) {
-        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], constants.FRAGMENT_ACTUAL_CLASS);
+        Brav1Toolbox.addClass(fragmentsArray[fp][fsp][f], ft_constants.FRAGMENT_ACTUAL_CLASS);
       }
       fr[fp][fsp] = f;
     }
@@ -552,7 +489,7 @@ var Flowtime = (function ()
      */
     function _showFragments() {
       for (var i = 0; i < fragments.length; i++) {
-        Brav1Toolbox.addClass(fragments[i], constants.FRAGMENT_REVEALED_TEMP_CLASS);
+        Brav1Toolbox.addClass(fragments[i], ft_constants.FRAGMENT_REVEALED_TEMP_CLASS);
       }
     }
 
@@ -562,7 +499,7 @@ var Flowtime = (function ()
      */
     function _hideFragments() {
       for (var i = 0; i < fragments.length; i++) {
-        Brav1Toolbox.removeClass(fragments[i], constants.FRAGMENT_REVEALED_TEMP_CLASS);
+        Brav1Toolbox.removeClass(fragments[i], ft_constants.FRAGMENT_REVEALED_TEMP_CLASS);
       }
     }
 
@@ -615,7 +552,7 @@ var Flowtime = (function ()
               else if (isp == sp)
               {
                 // same page
-                if (_fragmentsOnBack == true && (pastIndex.section > NavigationMatrix.getPageIndex().section || pastIndex.page > NavigationMatrix.getPageIndex().page))
+                if (ft_variables._fragmentsOnBack == true && (ft_variables.pastIndex.section > NavigationMatrix.getPageIndex().section || ft_variables.pastIndex.page > NavigationMatrix.getPageIndex().page))
                 {
                   for (var f = 0; f < frsp.length; f++)
                   {
@@ -629,13 +566,13 @@ var Flowtime = (function ()
                     _hideFragment(ip, isp, f);
                   }
                 }
-                if (_fragmentsOnBack == false)
+                if (ft_variables._fragmentsOnBack == false)
                 {
                   fr[ip][isp] = -1
                 }
                 else
                 {
-                  if (pastIndex.section > NavigationMatrix.getPageIndex().section || pastIndex.page > NavigationMatrix.getPageIndex().page)
+                  if (ft_variables.pastIndex.section > NavigationMatrix.getPageIndex().section || ft_variables.pastIndex.page > NavigationMatrix.getPageIndex().page)
                   {
                     fr[ip][isp] = frsp.length - 1;
                   }
@@ -758,7 +695,7 @@ var Flowtime = (function ()
     function _getPrevSectionIndex() {
       var sectionIndex = p-1;
       if (sectionIndex < 0) {
-        if (_isLoopable === true) {
+        if (ft_variables._isLoopable === true) {
           sectionIndex = sectionsArray.length-1;
         } else {
           return null;
@@ -780,7 +717,7 @@ var Flowtime = (function ()
       // the page is in the previous section
       if (pageIndex < 0) {
         // the section is the first and the presentation can loop
-        if (p === 0 && _isLoopable) {
+        if (p === 0 && ft_variables._isLoopable) {
           // get the last page of the last section
           var sectionIndex = sectionsArray.length-1;
           return sectionsArray[sectionIndex][sectionsArray[sectionIndex].length-1];
@@ -805,7 +742,7 @@ var Flowtime = (function ()
     function _getNextSectionIndex() {
       var sectionIndex = p+1;
       if (sectionIndex > sectionsArray.length-1) {
-        if (_isLoopable === true) {
+        if (ft_variables._isLoopable === true) {
           sectionIndex = 0;
         } else {
           return null;
@@ -827,7 +764,7 @@ var Flowtime = (function ()
       // the page is in the next section
       if (pageIndex > sectionsArray[p].length-1) {
         // the section is the last and the presentation can loop
-        if (p === sectionsArray.length-1 && _isLoopable) {
+        if (p === sectionsArray.length-1 && ft_variables._isLoopable) {
           // get the first page of the first section
           return sectionsArray[0][0];
         } else if (p < sectionsArray.length-1) {
@@ -938,7 +875,7 @@ var Flowtime = (function ()
           //
           if (spa !== d) {
             Brav1Toolbox.removeClass(spa, "hilite");
-            if (_isOverview == false && spa !== _getCurrentPage()) {
+            if (ft_variables._isOverview == false && spa !== _getCurrentPage()) {
               Brav1Toolbox.removeClass(spa, "actual");
             }
             if (i < sIndex) {
@@ -1030,7 +967,7 @@ var Flowtime = (function ()
    * used for navigation purposes
    */
   if (browserSupport) {
-    if (isTouchDevice) {
+    if (ft_variables.isTouchDevice) {
       Brav1Toolbox.addListener(document, "touchend", function(e) {
         // e.preventDefault(); // TODO FIX
         onNavClick(e);
@@ -1040,7 +977,7 @@ var Flowtime = (function ()
   }
 
   function onNavClick(e) {
-    if (_areLinksActive) {
+    if (ft_variables._areLinksActive) {
       if (e.target.nodeName === "A" || e.target.parentNode.nodeName === "A") {
         var href = e.target.getAttribute("href") || e.target.parentNode.getAttribute("href");
         if (href === "#") {
@@ -1058,18 +995,18 @@ var Flowtime = (function ()
         }
       }
       // pages in oveview mode
-      if (_isOverview) {
+      if (ft_variables._isOverview) {
         var dest = e.target;
-        while (dest && !Brav1Toolbox.hasClass(dest, constants.PAGE_CLASS)) {
+        while (dest && !Brav1Toolbox.hasClass(dest, ft_constants.PAGE_CLASS)) {
           dest = dest.parentNode;
         }
-        if (Brav1Toolbox.hasClass(dest, constants.PAGE_CLASS)) {
+        if (Brav1Toolbox.hasClass(dest, ft_constants.PAGE_CLASS)) {
           e.preventDefault();
           navigateTo(dest, null, true);
         }
       }
       // thumbs in the default progress indicator
-      if (Brav1Toolbox.hasClass(e.target, constants.PAGE_THUMB_CLASS)) {
+      if (Brav1Toolbox.hasClass(e.target, ft_constants.PAGE_THUMB_CLASS)) {
         e.preventDefault();
         var pTo = Number(unsafeAttr(e.target.getAttribute("data-section")));
         var spTo = Number(unsafeAttr(e.target.getAttribute("data-page")));
@@ -1083,15 +1020,15 @@ var Flowtime = (function ()
    * uses native history API to manage navigation
    * but uses the # for client side navigation on return
    */
-  if (useHash == false && window.history.pushState) {
+  if (ft_variables.useHash == false && window.history.pushState) {
     window.onpopstate = onPopState;
   }
   else {
-    useHash = true;
+    ft_variables.useHash = true;
   }
   //
   function onPopState(e) {
-    useHash = false;
+    ft_variables.useHash = false;
     var h;
     if (e.state) {
       h = e.state.token.replace("#/", "");
@@ -1114,7 +1051,7 @@ var Flowtime = (function ()
    * @param d Boolean force the hash change
    */
   function onHashChange(e, d) {
-    if (useHash || d) {
+    if (ft_variables.useHash || d) {
       var h = document.location.hash.replace("#/", "");
       var dest = NavigationMatrix.setPage(h);
       navigateTo(dest, false);
@@ -1132,13 +1069,13 @@ var Flowtime = (function ()
 */
 
   function _setMouseDrag(value) {
-    _mouseDragEnabled = value;
-    if (_mouseDragEnabled) {
-      Brav1Toolbox.addListener(ftContainer, "mousedown", onTouchStart, false);
-      Brav1Toolbox.addListener(ftContainer, "mouseup", onTouchEnd, false);
+    ft_variables._mouseDragEnabled = value;
+    if (ft_variables._mouseDragEnabled) {
+      Brav1Toolbox.addListener(ft_variables.ftContainer, "mousedown", onTouchStart, false);
+      Brav1Toolbox.addListener(ft_variables.ftContainer, "mouseup", onTouchEnd, false);
     } else {
-      Brav1Toolbox.removeListener(ftContainer, "mousedown", onTouchStart);
-      Brav1Toolbox.removeListener(ftContainer, "mouseup", onTouchEnd);
+      Brav1Toolbox.removeListener(ft_variables.ftContainer, "mousedown", onTouchStart);
+      Brav1Toolbox.removeListener(ft_variables.ftContainer, "mouseup", onTouchEnd);
     }
   }
 
@@ -1152,7 +1089,7 @@ var Flowtime = (function ()
      ##     #######   #######   ######  ##     ##
 */
 
-  var _ftX = ftContainer.offsetX;
+  var _ftX = ft_variables.ftContainer.offsetX;
   var _ftY = 0;
   var _touchStartX = 0;
   var _touchStartY = 0;
@@ -1162,10 +1099,10 @@ var Flowtime = (function ()
   var _dragAxis = "x";
   var _swipeLimit = 100;
 
-  if (isTouchDevice) {
-    ftContainer.addEventListener("touchstart", onTouchStart, false);
-    ftContainer.addEventListener("touchmove",  onTouchMove, false);
-    ftContainer.addEventListener("touchend",   onTouchEnd, false);
+  if (ft_variables.isTouchDevice) {
+    ft_variables.ftContainer.addEventListener("touchstart", onTouchStart, false);
+    ft_variables.ftContainer.addEventListener("touchmove",  onTouchMove, false);
+    ft_variables.ftContainer.addEventListener("touchend",   onTouchEnd, false);
   }
 
   function onTouchStart(e) {
@@ -1179,8 +1116,8 @@ var Flowtime = (function ()
     var initOffset = getInitOffset();
     _ftX = initOffset.x;
     _ftY = initOffset.y;
-    if (_mouseDragEnabled) {
-      Brav1Toolbox.addListener(ftContainer, "mousemove", onTouchMove, false);
+    if (ft_variables._mouseDragEnabled) {
+      Brav1Toolbox.addListener(ft_variables.ftContainer, "mousemove", onTouchMove, false);
     }
   }
 
@@ -1192,21 +1129,21 @@ var Flowtime = (function ()
   }
 
   function onTouchEnd(e) {
-    if (_isTouchActive) {
+    if (ft_variables._isTouchActive) {
       if (Math.abs(_deltaX) >= _swipeLimit || Math.abs(_deltaY) >= _swipeLimit) {
         e = getTouchEvent(e);
         _dragging = 0;
         _dragAxis = Math.abs(_deltaX) >= Math.abs(_deltaY) ? "x" : "y";
         if (_dragAxis == "x" && Math.abs(_deltaX) >= _swipeLimit) {
           if (_deltaX > 0) {
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _prevPage();
             } else {
               _prevSection(undefined, false);
             }
             return;
           } else if (_deltaX < 0) {
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _nextPage();
             } else {
               _nextSection(undefined, false);
@@ -1216,14 +1153,14 @@ var Flowtime = (function ()
         }
         else {
           if (_deltaY > 0 && Math.abs(_deltaY) >= _swipeLimit) {
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _prevSection(undefined, false);
             } else {
               _prevPage();
             }
             return;
           } else if (_deltaY < 0) {
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _nextSection(undefined, false);
             } else {
               _nextPage();
@@ -1233,7 +1170,7 @@ var Flowtime = (function ()
         }
       }
     }
-    Brav1Toolbox.removeListener(ftContainer, "mousemove", onTouchMove);
+    Brav1Toolbox.removeListener(ft_variables.ftContainer, "mousemove", onTouchMove);
   }
 
   function getTouchEvent(e) {
@@ -1244,7 +1181,7 @@ var Flowtime = (function ()
     }
 
     function getInitOffset() {
-      var off = ftContainer.style[_transformProperty];
+      var off = ft_variables.ftContainer.style[ft_variables._transformProperty];
       // X
       var indexX = off.indexOf("translateX(") + 11;
       var offX = off.substring(indexX, off.indexOf(")", indexX));
@@ -1289,15 +1226,15 @@ var Flowtime = (function ()
   /**
    * Mouse Wheel Scroll Navigation
    */
-  addWheelListener(ftContainer, onMouseScroll);
+  addWheelListener(ft_variables.ftContainer, onMouseScroll);
 
   var scrollTimeout = NaN;
 
   function onMouseScroll(e) {
     var t = e.target;
-    _isScrollable = checkIfScrollable(t);
-    var _isScrollActiveTemp = _isScrollable === true ? false : _isScrollActive;
-    if (_isScrolling === false && _isScrollActiveTemp === true) {
+    ft_variables._isScrollable = checkIfScrollable(t);
+    var _isScrollActiveTemp = ft_variables._isScrollable === true ? false : ft_variables._isScrollActive;
+    if (ft_variables._isScrolling === false && _isScrollActiveTemp === true) {
       //e.preventDefault();
       doScrollOnce(e);
     }
@@ -1325,28 +1262,28 @@ var Flowtime = (function ()
   }
 
   function enableMomentumScroll() {
-    clearTimeout(_momentumScrollTimeout);
-    _isScrolling = false;
+    clearTimeout(ft_variables._momentumScrollTimeout);
+    ft_variables._isScrolling = false;
   }
 
   function disableMomentumScroll() {
-    _momentumScrollTimeout = setTimeout(enableMomentumScroll, _momentumScrollDelay);
+    ft_variables._momentumScrollTimeout = setTimeout(enableMomentumScroll, ft_variables._momentumScrollDelay);
   }
 
   function doScrollOnce(e) {
     //
-    _isScrolling = true;
+    ft_variables._isScrolling = true;
     disableMomentumScroll();
     //
     if (e.deltaY == 0) {
       if (e.deltaX > 0) {
-        if (_crossDirection === true) {
+        if (ft_variables._crossDirection === true) {
           _nextPage();
         } else {
           _nextSection(undefined, e.shiftKey);
         }
       } else if (e.deltaX < 0) {
-        if (_crossDirection === true) {
+        if (ft_variables._crossDirection === true) {
           _prevPage();
         } else {
           _prevSection(undefined, e.shiftKey);
@@ -1354,13 +1291,13 @@ var Flowtime = (function ()
       }
     } else {
       if (e.deltaY > 0) {
-        if (_crossDirection === true) {
+        if (ft_variables._crossDirection === true) {
           _nextSection(undefined, e.shiftKey);
         } else {
           _nextPage();
         }
       } else if (e.deltaY < 0) {
-        if (_crossDirection === true) {
+        if (ft_variables._crossDirection === true) {
           _prevSection(undefined, e.shiftKey);
         } else {
           _prevPage();
@@ -1386,7 +1323,7 @@ var Flowtime = (function ()
     var ticker = NaN;
     function _enable() {
       _disable();
-      if (!_isOverview) {
+      if (!ft_variables._isOverview) {
         ticker = setTimeout(doResizeHandler, 300);
       }
     }
@@ -1427,22 +1364,22 @@ var Flowtime = (function ()
     if (h.length > 0) {
       var aHash = h.replace("#/", "").split("/");
       if (aHash.length > 0) {
-        var dataProgSection = document.querySelectorAll(constants.SECTION_SELECTOR + "[data-prog=__" + aHash[0] + "]");
-        var dataIdSection = document.querySelectorAll(constants.SECTION_SELECTOR + "[data-id=__" + aHash[0] + "]");
+        var dataProgSection = document.querySelectorAll(ft_constants.SECTION_SELECTOR + "[data-prog=__" + aHash[0] + "]");
+        var dataIdSection = document.querySelectorAll(ft_constants.SECTION_SELECTOR + "[data-id=__" + aHash[0] + "]");
         var ps = dataProgSection.length > 0 ? dataProgSection : dataIdSection;
         if (ps != null) {
           for (var i = 0; i < ps.length; i++) {
             var p = ps[i];
             var sp = null;
             if (aHash.length > 1) {
-              sp = p.querySelector(constants.PAGE_SELECTOR + "[data-prog=__" + aHash[1] + "]") || p.querySelector(constants.PAGE_SELECTOR + "[data-id=__" + aHash[1] + "]");
+              sp = p.querySelector(ft_constants.PAGE_SELECTOR + "[data-prog=__" + aHash[1] + "]") || p.querySelector(ft_constants.PAGE_SELECTOR + "[data-id=__" + aHash[1] + "]");
             }
             if (sp !== null) {
               break;
             }
           }
           if (sp == null && p) {
-            sp = p.querySelector(constants.PAGE_SELECTOR);
+            sp = p.querySelector(ft_constants.PAGE_SELECTOR);
           }
         }
         return sp;
@@ -1465,12 +1402,12 @@ var Flowtime = (function ()
    * public method to force navigation updates
    */
   function _updateNavigation(fireEvent) {
-    _fireEvent = fireEvent === false ? false : true;
+    ft_variables._fireEvent = fireEvent === false ? false : true;
     var currentPagePreUpdate = NavigationMatrix.getCurrentPage();
     NavigationMatrix.update();
     //
     navigateTo(currentPagePreUpdate, false, false, false);
-    if (_showProgress === true) {
+    if (ft_variables._showProgress === true) {
       buildProgressIndicator();
     }
   }
@@ -1481,7 +1418,7 @@ var Flowtime = (function ()
    * otherwise it will be used a formatted version of the hash string
    */
   function setTitle(h) {
-    var t = siteName;
+    var t = ft_variables.siteName;
     var ht = NavigationMatrix.getCurrentPage().getAttribute("data-title");
     if (ht == null) {
       var hs = h.split("/");
@@ -1562,24 +1499,24 @@ var Flowtime = (function ()
       if (NavigationMatrix.getCurrentPage() != null) {
         dest = NavigationMatrix.getCurrentPage();
       } else {
-        dest = document.querySelector(constants.PAGE_SELECTOR);
+        dest = document.querySelector(ft_constants.PAGE_SELECTOR);
       }
       push = true;
     }
     // checks what properties use for navigation and set the style
     if (withTransitions === false) {
       _pauseTransitions();
-    } else if (_transitionPaused === true) {
+    } else if (ft_variables._transitionPaused === true) {
       _restoreTransitions();
     }
     navigate(dest);
-    if (_transitionPaused === true) {
+    if (ft_variables._transitionPaused === true) {
       _restoreTransitions(true);
     }
     //
     moveParallax(dest);
     //
-    if (_isOverview) {
+    if (ft_variables._isOverview) {
       _toggleOverview(false, false);
     }
     //
@@ -1589,15 +1526,15 @@ var Flowtime = (function ()
     }
     // set history properties
     var pageIndex = NavigationMatrix.getPageIndex(dest);
-    if (pastIndex.section != pageIndex.section || pastIndex.page != pageIndex.page) {
+    if (ft_variables.pastIndex.section != pageIndex.section || ft_variables.pastIndex.page != pageIndex.page) {
       if (pushHistory != null && push != false && NavigationMatrix.getCurrentFragmentIndex() == -1) {
         var stateObj = { token: h };
         var nextHash = "#/" + h;
-        currentHash = nextHash;
+        ft_variables.currentHash = nextHash;
         try {
-          window.history.pushState(stateObj, null, currentHash);
+          window.history.pushState(stateObj, null, ft_variables.currentHash);
         } catch (error) {
-          if (_showErrors === true) {
+          if (ft_variables._showErrors === true) {
             console.log(error);
           }
         }
@@ -1610,20 +1547,20 @@ var Flowtime = (function ()
     //
 
     // store the status of the section, the last page visited in the section
-    _sectionsStatus[pageIndex.section] = pageIndex.page;
+    ft_variables._sectionsStatus[pageIndex.section] = pageIndex.page;
 
     // store the last page index visited using up or down only if the section have the same number of pages or more
-    if (pastIndex.section === pageIndex.section && pastIndex.page !== pageIndex.page) {
-      _sectionsLastPageDepth = pageIndex.page;
+    if (ft_variables.pastIndex.section === pageIndex.section && ft_variables.pastIndex.page !== pageIndex.page) {
+      ft_variables._sectionsLastPageDepth = pageIndex.page;
     }
 
     // dispatches an event populated with navigation data
     fireNavigationEvent();
     // cache the section and page index, useful to determine the direction of the next navigation
-    pastIndex = pageIndex;
+    ft_variables.pastIndex = pageIndex;
     NavigationMatrix.switchActivePage(dest, true);
     //
-    if (_showProgress) {
+    if (ft_variables._showProgress) {
       updateProgress();
     }
 
@@ -1633,35 +1570,35 @@ var Flowtime = (function ()
    * fires the navigation event and, if exists, call the navigation callback
    */
   function fireNavigationEvent() {
-    if (_fireEvent !== false) {
+    if (ft_variables._fireEvent !== false) {
       var pageIndex = NavigationMatrix.getPageIndex();
       var eventData = {
                         section          : NavigationMatrix.getCurrentSection(),
                         page             : NavigationMatrix.getCurrentPage(),
                         sectionIndex     : pageIndex.section,
                         pageIndex        : pageIndex.page,
-                        pastSectionIndex : pastIndex.section,
-                        pastPageIndex    : pastIndex.page,
+                        pastSectionIndex : ft_variables.pastIndex.section,
+                        pastPageIndex    : ft_variables.pastIndex.page,
                         prevSection      : NavigationMatrix.hasPrevSection(),
                         nextSection      : NavigationMatrix.hasNextSection(),
                         prevPage         : NavigationMatrix.hasPrevPage(),
                         nextPage         : NavigationMatrix.hasNextPage(),
                         fragment         : NavigationMatrix.getCurrentFragment(),
                         fragmentIndex    : NavigationMatrix.getCurrentFragmentIndex(),
-                        isOverview       : _isOverview,
+                        isOverview       : ft_variables._isOverview,
                         progress         : NavigationMatrix.getProgress(),
                         total            : NavigationMatrix.getPagesTotalLength(),
-                        isLoopable       : _isLoopable,
-                        clickerMode      : _clickerMode,
+                        isLoopable       : ft_variables._isLoopable,
+                        clickerMode      : ft_variables._clickerMode,
                         isAutoplay       : _isAutoplay
                       }
-      Brav1Toolbox.dispatchEvent(constants.NAVIGATION_EVENT, eventData);
+      Brav1Toolbox.dispatchEvent(ft_constants.NAVIGATION_EVENT, eventData);
       //
-      if (_navigationCallback !== undefined) {
-        _navigationCallback(eventData);
+      if (ft_variables._navigationCallback !== undefined) {
+        ft_variables._navigationCallback(eventData);
       }
     } else {
-      _fireEvent = true;
+      ft_variables._fireEvent = true;
     }
   }
 
@@ -1683,13 +1620,13 @@ var Flowtime = (function ()
     var x;
     var y;
     var pageIndex = NavigationMatrix.getPageIndex(dest);
-    if (_slideInPx === true) {
+    if (ft_variables._slideInPx === true) {
       // calculate the coordinates of the destination
       x = dest.x;
       y = dest.y;
     } else {
       // calculate the index of the destination page
-      if (_crossDirection === true) {
+      if (ft_variables._crossDirection === true) {
         y = pageIndex.section;
         x = pageIndex.page;
       } else {
@@ -1697,52 +1634,52 @@ var Flowtime = (function ()
         y = pageIndex.page;
       }
     }
-    if (_scrollTheSection === true) {
+    if (ft_variables._scrollTheSection === true) {
       var sectionDest = dest.parentNode;
-      var outside = ftContainer;
+      var outside = ft_variables.ftContainer;
       var inside = sectionDest;
-      if (_crossDirection === true) {
+      if (ft_variables._crossDirection === true) {
         outside = sectionDest;
-        inside = ftContainer;
+        inside = ft_variables.ftContainer;
       }
-      if (_supportsTransform) {
+      if (ft_variables._supportsTransform) {
         //
-        if (_slideInPx) {
-          outside.style[_transformProperty] = "translateX(" + (-x) + "px)";
+        if (ft_variables._slideInPx) {
+          outside.style[ft_variables._transformProperty] = "translateX(" + (-x) + "px)";
         } else {
-          outside.style[_transformProperty] = "translateX(" + -x * 100 + "%)";
+          outside.style[ft_variables._transformProperty] = "translateX(" + -x * 100 + "%)";
         }
-        if (_slideInPx) {
-          inside.style[_transformProperty] = "translateY(" + (-y) + "px)";
+        if (ft_variables._slideInPx) {
+          inside.style[ft_variables._transformProperty] = "translateY(" + (-y) + "px)";
         } else {
-          inside.style[_transformProperty] = "translateY(" + (-y) * 100 + "%)";
+          inside.style[ft_variables._transformProperty] = "translateY(" + (-y) * 100 + "%)";
         }
       } else {
-        if (_slideInPx) {
+        if (ft_variables._slideInPx) {
           outside.style.left = (x) + "px";
         } else {
           outside.style.left = -x * 100 + "%";
         }
-        if (_slideInPx) {
+        if (ft_variables._slideInPx) {
           inside.style.top = (y) + "px";
         } else {
           inside.style.top = -y * 100 + "%";
         }
       }
     } else {
-      if (_supportsTransform) {
-        if (_slideInPx) {
-          ftContainer.style[_transformProperty] = "translateX(" + (-x) + "px) translateY(" + (-y) + "px)";
+      if (ft_variables._supportsTransform) {
+        if (ft_variables._slideInPx) {
+          ft_variables.ftContainer.style[ft_variables._transformProperty] = "translateX(" + (-x) + "px) translateY(" + (-y) + "px)";
         } else {
-          ftContainer.style[_transformProperty] = "translateX(" + (-x) * 100 + "%) translateY(" + (-y) * 100 + "%)";
+          ft_variables.ftContainer.style[ft_variables._transformProperty] = "translateX(" + (-x) * 100 + "%) translateY(" + (-y) * 100 + "%)";
         }
       } else {
-        if (_slideInPx) {
-          ftContainer.style.top = (-y) + "px";
-          ftContainer.style.left = (-x) + "px";
+        if (ft_variables._slideInPx) {
+          ft_variables.ftContainer.style.top = (-y) + "px";
+          ft_variables.ftContainer.style.left = (-x) + "px";
         } else {
-          ftContainer.style.top = (-y) * 100 + "%";
-          ftContainer.style.left = (-x) * 100 + "%";
+          ft_variables.ftContainer.style.top = (-y) * 100 + "%";
+          ft_variables.ftContainer.style.left = (-x) * 100 + "%";
         }
       }
     }
@@ -1750,7 +1687,7 @@ var Flowtime = (function ()
   }
 
   function moveParallax(dest) {
-    if (_parallaxEnabled) {
+    if (ft_variables._parallaxEnabled) {
       var pageIndex = NavigationMatrix.getPageIndex(dest);
       //
       var pxElements = NavigationMatrix.getParallaxElements();
@@ -1778,13 +1715,13 @@ var Flowtime = (function ()
                 }
                 // animation
                 var unit = "%";
-                if (_parallaxInPx) {
+                if (ft_variables._parallaxInPx) {
                   unit = "px";
                 }
-                if (_crossDirection === true) {
-                  pxElement.style[_transformProperty] = "translateX(" + pY + unit + ") translateY(" + pX + unit + ")";
+                if (ft_variables._crossDirection === true) {
+                  pxElement.style[ft_variables._transformProperty] = "translateX(" + pY + unit + ") translateY(" + pX + unit + ")";
                 } else {
-                  pxElement.style[_transformProperty] = "translateX(" + pX + unit + ") translateY(" + pY + unit + ")";
+                  pxElement.style[ft_variables._transformProperty] = "translateX(" + pX + unit + ") translateY(" + pY + unit + ")";
                 }
               }
             }
@@ -1807,50 +1744,50 @@ var Flowtime = (function ()
   ##        ##    ##  ##     ## ##    ##  ##    ##  ##       ##    ## ##    ##
   ##        ##     ##  #######   ######   ##     ## ########  ######   ######
 */
-  var defaultProgress = null;
+  ft_variables.defaultProgress = null;
   var progressFill = null;
 
   function buildProgressIndicator() {
-    if (defaultProgress) {
-      defaultProgress.parentNode.removeChild(defaultProgress);
+    if (ft_variables.defaultProgress) {
+      ft_variables.defaultProgress.parentNode.removeChild(ft_variables.defaultProgress);
     }
     var domFragment = document.createDocumentFragment();
     // create the progress container div
-    defaultProgress = document.createElement("div");
-    defaultProgress.className = constants.DEFAULT_PROGRESS_CLASS + (_crossDirection === true ? " ft-cross" : "");
-    domFragment.appendChild(defaultProgress);
+    ft_variables.defaultProgress = document.createElement("div");
+    ft_variables.defaultProgress.className = ft_constants.DEFAULT_PROGRESS_CLASS + (ft_variables._crossDirection === true ? " ft-cross" : "");
+    domFragment.appendChild(ft_variables.defaultProgress);
     // loop through sections
     for (var i = 0; i < NavigationMatrix.getSectionsLength(); i++) {
       var pDiv = document.createElement("div");
         pDiv.setAttribute("data-section", "__" + i);
-        pDiv.className = constants.SECTION_THUMB_CLASS;
+        pDiv.className = ft_constants.SECTION_THUMB_CLASS;
         Brav1Toolbox.addClass(pDiv, "thumb-section-" + i);
       // loop through pages
       var spArray = NavigationMatrix.getPages(i)
       for (var ii = 0; ii < spArray.length; ii++) {
         var spDiv = document.createElement("div");
-          spDiv.className = constants.PAGE_THUMB_CLASS;
+          spDiv.className = ft_constants.PAGE_THUMB_CLASS;
           spDiv.setAttribute("data-section", "__" + i);
           spDiv.setAttribute("data-page", "__" + ii);
           Brav1Toolbox.addClass(spDiv, "thumb-page-" + ii);
           pDiv.appendChild(spDiv);
       };
-      defaultProgress.appendChild(pDiv);
+      ft_variables.defaultProgress.appendChild(pDiv);
     };
-    body.appendChild(defaultProgress);
+    ft_variables.body.appendChild(ft_variables.defaultProgress);
     updateProgress();
   }
 
   function hideProgressIndicator() {
-    if (defaultProgress != null) {
-      body.removeChild(defaultProgress);
-      defaultProgress = null;
+    if (ft_variables.defaultProgress != null) {
+      ft_variables.body.removeChild(ft_variables.defaultProgress);
+      ft_variables.defaultProgress = null;
     }
   }
 
   function updateProgress() {
-    if (defaultProgress != null) {
-      var spts = defaultProgress.querySelectorAll(constants.PAGE_THUMB_SELECTOR);
+    if (ft_variables.defaultProgress != null) {
+      var spts = ft_variables.defaultProgress.querySelectorAll(ft_constants.PAGE_THUMB_SELECTOR);
       for (var i = 0; i < spts.length; i++) {
         var spt = spts[i];
         var pTo = Number(unsafeAttr(spt.getAttribute("data-section")));
@@ -1866,7 +1803,7 @@ var Flowtime = (function ()
   }
 
   function _getDefaultProgress() {
-    return defaultProgress;
+    return ft_variables.defaultProgress;
   }
 
 /*
@@ -1883,10 +1820,10 @@ var Flowtime = (function ()
    * switch from the overview states
    */
   function _toggleOverview(back, navigate) {
-    if (_isOverview) {
+    if (ft_variables._isOverview) {
       zoomIn(back, navigate);
     } else {
-      overviewCachedDest = NavigationMatrix.getCurrentPage();
+      ft_variables.overviewCachedDest = NavigationMatrix.getCurrentPage();
       zoomOut();
     }
   }
@@ -1895,10 +1832,10 @@ var Flowtime = (function ()
    * set the overview state to the given value
    */
   function _setShowOverview(v, back, navigate) {
-    if (_isOverview === v) {
+    if (ft_variables._isOverview === v) {
       return;
     }
-    _isOverview = !v;
+    ft_variables._isOverview = !v;
     _toggleOverview(back, navigate);
   }
 
@@ -1906,13 +1843,13 @@ var Flowtime = (function ()
    * zoom in the view to focus on the current section / page
    */
   function zoomIn(back, navigate) {
-    _isOverview = false;
-    Brav1Toolbox.removeClass(body, "ft-overview");
+    ft_variables._isOverview = false;
+    Brav1Toolbox.removeClass(ft_variables.body, "ft-overview");
     NavigationMatrix.hideFragments();
     navigate = navigate === false ? false : true;
     if (navigate == true) {
       if (back == true) {
-        navigateTo(overviewCachedDest);
+        navigateTo(ft_variables.overviewCachedDest);
       } else {
         navigateTo();
       }
@@ -1923,11 +1860,11 @@ var Flowtime = (function ()
    * zoom out the view for an overview of all the sections / pages
    */
   function zoomOut() {
-    _isOverview = true;
-    Brav1Toolbox.addClass(body, "ft-overview");
+    ft_variables._isOverview = true;
+    Brav1Toolbox.addClass(ft_variables.body, "ft-overview");
     NavigationMatrix.showFragments();
     //
-    if (_useOverviewVariant == false) {
+    if (ft_variables._useOverviewVariant == false) {
       overviewZoomTypeA(true);
     } else {
       overviewZoomTypeB(true);
@@ -1936,9 +1873,9 @@ var Flowtime = (function ()
   }
 
   function overviewZoomTypeA(out) {
-    // ftContainer scale version
+    // ft_variables.ftContainer scale version
     if (out) {
-      if (_crossDirection === true) {
+      if (ft_variables._crossDirection === true) {
         var scaleY = 100 / NavigationMatrix.getSectionsLength();
         var scaleX = 100 / NavigationMatrix.getPagesLength();
       } else {
@@ -1950,17 +1887,17 @@ var Flowtime = (function ()
       var offsetX = (100 - NavigationMatrix.getSectionsLength() * scale) / 2;
       var offsetY = (100 - NavigationMatrix.getPagesLength() * scale) / 2;
       //
-      ftContainer.style[_transformProperty] = "translate(" + offsetX + "%, " + offsetY + "%) scale(" + scale/100 + ", " + scale/100 + ")";
+      ft_variables.ftContainer.style[ft_variables._transformProperty] = "translate(" + offsetX + "%, " + offsetY + "%) scale(" + scale/100 + ", " + scale/100 + ")";
     }
   }
 
   function overviewZoomTypeB(out) {
-    // ftContainer scale alternative version
+    // ft_variables.ftContainer scale alternative version
     if (out) {
-      var scale = overviewFixedScaleFactor // Math.min(scaleX, scaleY) * 0.9;
+      var scale = ft_variables.overviewFixedScaleFactor // Math.min(scaleX, scaleY) * 0.9;
       var pIndex = NavigationMatrix.getPageIndex();
       //
-      if (_crossDirection === true) {
+      if (ft_variables._crossDirection === true) {
         var offsetY = 50 - (scale * pIndex.section) - (scale / 2);
         var offsetX = 50 - (scale * pIndex.page) - (scale / 2);
       } else {
@@ -1968,7 +1905,7 @@ var Flowtime = (function ()
         var offsetY = 50 - (scale * pIndex.page) - (scale / 2);
       }
       //
-      ftContainer.style[_transformProperty] = "translate(" + offsetX + "%, " + offsetY + "%) scale(" + scale/100 + ", " + scale/100 + ")";
+      ft_variables.ftContainer.style[ft_variables._transformProperty] = "translate(" + offsetX + "%, " + offsetY + "%) scale(" + scale/100 + ", " + scale/100 + ")";
     }
   }
 
@@ -1998,7 +1935,7 @@ var Flowtime = (function ()
   }
 
   function onKeyUp(e) {
-    if (_isKeyboardActive) {
+    if (ft_variables._isKeyboardActive) {
       var tag = e.target.tagName;
       var elem;
       if (tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
@@ -2008,14 +1945,14 @@ var Flowtime = (function ()
             _toggleOverview(true);
             break;
           case 33 : // pag up
-            if (_clickerMode) {
+            if (ft_variables._clickerMode) {
               _prevPage(e.shiftKey);
             } else {
               _gotoTop();
             }
             break;
           case 34 : // pag down
-            if (_clickerMode) {
+            if (ft_variables._clickerMode) {
               _nextPage(e.shiftKey);
             } else {
               _gotoBottom();
@@ -2028,35 +1965,35 @@ var Flowtime = (function ()
             _gotoHome();
             break;
           case 37 : // left
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _prevPage(e.shiftKey);
             } else {
               _prevSection(null, e.shiftKey);
             }
             break;
           case 39 : // right
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _nextPage(e.shiftKey);
             } else {
               _nextSection(null, e.shiftKey);
             }
             break;
           case 38 : // up
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _prevSection(null, e.shiftKey);
             } else {
               _prevPage(e.shiftKey);
             }
             break;
           case 40 : // down
-            if (_crossDirection === true) {
+            if (ft_variables._crossDirection === true) {
               _nextSection(null, e.shiftKey);
             } else {
               _nextPage(e.shiftKey);
             }
             break;
           case 13 : // return
-            if (_isOverview) {
+            if (ft_variables._isOverview) {
               _gotoPage(NavigationMatrix.getCurrentHilited());
             }
             break;
@@ -2139,7 +2076,7 @@ var Flowtime = (function ()
    */
   function _start() {
     // init and configuration
-    if (_showProgress && defaultProgress == null) {
+    if (ft_variables._showProgress && ft_variables.defaultProgress == null) {
       buildProgressIndicator();
     }
     // start navigation
@@ -2157,21 +2094,21 @@ var Flowtime = (function ()
   }
 
   function _pauseTransitions(restoreAfter) {
-    _transitionPaused = true;
-    ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "0ms";
+    ft_variables._transitionPaused = true;
+    ft_variables.ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "0ms";
     if (restoreAfter === true) {
-      setTimeout(_restoreTransitions, _transitionTime);
+      setTimeout(_restoreTransitions, ft_variables._transitionTime);
     }
   }
 
   function _restoreTransitions(withTransitionDelay) {
-    _transitionPaused = false;
+    ft_variables._transitionPaused = false;
     if (withTransitionDelay === true) {
       setTimeout(function() {
-        ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "" + _transitionTime / 1000 + "s";
-      }, _transitionTime);
+        ft_variables.ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "" + ft_variables._transitionTime / 1000 + "s";
+      }, ft_variables._transitionTime);
     } else {
-      ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "" + _transitionTime / 1000 + "s";
+      ft_variables.ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "" + ft_variables._transitionTime / 1000 + "s";
     }
 
   }
@@ -2181,15 +2118,15 @@ var Flowtime = (function ()
    * @param top Boolean if true the next section will be the first page in the next array; if false the next section will be the same index page in the next array
    */
   function _nextSection(top, alternate) {
-    top = top != undefined ? top : _gridNavigation;
+    top = top != undefined ? top : ft_variables._gridNavigation;
     if (alternate === true) {
-      top = !_gridNavigation;
+      top = !ft_variables._gridNavigation;
     }
-    var d = NavigationMatrix.getNextSection(top, _fragmentsOnSide);
+    var d = NavigationMatrix.getNextSection(top, ft_variables._fragmentsOnSide);
     if (d != undefined) {
       navigateTo(d);
     } else {
-      if (_isOverview && _useOverviewVariant) {
+      if (ft_variables._isOverview && ft_variables._useOverviewVariant) {
         zoomOut();
       }
     }
@@ -2200,15 +2137,15 @@ var Flowtime = (function ()
    *
    */
   function _prevSection(top, alternate) {
-    top = top != undefined ? top : _gridNavigation;
+    top = top != undefined ? top : ft_variables._gridNavigation;
     if (alternate === true) {
-      top = !_gridNavigation;
+      top = !ft_variables._gridNavigation;
     }
-    var d = NavigationMatrix.getPrevSection(top, _fragmentsOnSide);
+    var d = NavigationMatrix.getPrevSection(top, ft_variables._fragmentsOnSide);
     if (d != undefined) {
       navigateTo(d);
     } else {
-      if (_isOverview && _useOverviewVariant) {
+      if (ft_variables._isOverview && ft_variables._useOverviewVariant) {
         zoomOut();
       }
     }
@@ -2225,7 +2162,7 @@ var Flowtime = (function ()
     if (d != undefined) {
       navigateTo(d);
     } else {
-      if (_isOverview && _useOverviewVariant) {
+      if (ft_variables._isOverview && ft_variables._useOverviewVariant) {
         zoomOut();
       }
     }
@@ -2242,7 +2179,7 @@ var Flowtime = (function ()
     if (d != undefined) {
       navigateTo(d);
     } else {
-      if (_isOverview && _useOverviewVariant) {
+      if (ft_variables._isOverview && ft_variables._useOverviewVariant) {
         zoomOut();
       }
     }
@@ -2264,9 +2201,9 @@ var Flowtime = (function ()
           var p = o.section;
           var sp = o.page;
           if (p != null && p != undefined) {
-            var pd = document.querySelector(constants.SECTION_SELECTOR + "[data-id=" + safeAttr(p) + "]");
+            var pd = document.querySelector(ft_constants.SECTION_SELECTOR + "[data-id=" + safeAttr(p) + "]");
             if (sp != null && sp != undefined) {
-              var spd = pd.querySelector(constants.PAGE_SELECTOR + "[data-id=" + safeAttr(sp) + "]");
+              var spd = pd.querySelector(ft_constants.PAGE_SELECTOR + "[data-id=" + safeAttr(sp) + "]");
               if (spd != null) {
                 navigateTo(spd);
                 return;
@@ -2319,12 +2256,12 @@ var Flowtime = (function ()
 */
 
   function _setFragmentsOnSide(v) {
-    _fragmentsOnSide = v === true ? true : false;
+    ft_variables._fragmentsOnSide = v === true ? true : false;
     _setFragmentsOnBack(v);
   }
 
   function _setFragmentsOnBack(v) {
-    _fragmentsOnBack = v === true ? true : false;
+    ft_variables._fragmentsOnBack = v === true ? true : false;
   }
 
   function _setUseHistory(v){
@@ -2332,55 +2269,55 @@ var Flowtime = (function ()
   }
 
   function _setSlideInPx(v) {
-    _slideInPx = v === true ? true : false;
-    if (_slideInPx === true) {
+    ft_variables._slideInPx = v === true ? true : false;
+    if (ft_variables._slideInPx === true) {
       NavigationMatrix.updateOffsets();
     }
     navigateTo();
   }
 
   function _setBackFromPageToTop(v) {
-    _backFromPageToTop = v === true ? true : false;
+    ft_variables._backFromPageToTop = v === true ? true : false;
   }
 
   function _setNearestToTop(v) {
-    _nearestToTop = v === true ? true : false;
+    ft_variables._nearestToTop = v === true ? true : false;
   }
 
   function _setGridNavigation(v) {
-    _gridNavigation = v === true ? false : true;
+    ft_variables._gridNavigation = v === true ? false : true;
   }
 
   function _setUseOverviewVariant(v) {
-    _useOverviewVariant = v === true ? true : false;
+    ft_variables._useOverviewVariant = v === true ? true : false;
   }
 
   function _setTwoStepsSlide(v) {
-    _twoStepsSlide = v === true ? true : false;
+    ft_variables._twoStepsSlide = v === true ? true : false;
   }
 
   function _setShowProgress(v) {
-    _showProgress = v === true ? true : false;
-    if (_showProgress) {
-      if (defaultProgress == null) {
+    ft_variables._showProgress = v === true ? true : false;
+    if (ft_variables._showProgress) {
+      if (ft_variables.defaultProgress == null) {
         buildProgressIndicator();
       }
       updateProgress();
     } else {
-      if (defaultProgress != null) {
+      if (ft_variables.defaultProgress != null) {
         hideProgressIndicator();
       }
     }
   }
 
   function _setDefaultParallaxValues(x, y) {
-    _defaultParallaxX = x;
-    _defaultParallaxY = y == undefined ? _defaultParallaxX : y;
+    ft_variables._defaultParallaxX = x;
+    ft_variables._defaultParallaxY = y == undefined ? ft_variables._defaultParallaxX : y;
     NavigationMatrix.update();
   }
 
   function _setParallaxInPx(v) {
-    _parallaxInPx = v === true ? true : false;
+    ft_variables._parallaxInPx = v === true ? true : false;
   }
 
   function _getSectionIndex() {
@@ -2392,56 +2329,56 @@ var Flowtime = (function ()
   }
 
   function _loop(v) {
-    _isLoopable = v === true ? true : false;
+    ft_variables._isLoopable = v === true ? true : false;
   }
 
   function _clicker(v) {
-    _clickerMode = v === true ? true : false;
+    ft_variables._clickerMode = v === true ? true : false;
   }
 
   function _enableNavigation(links, keyboard, scroll, touch) {
-    _areLinksActive = links === false ? false : true;
-    _isKeyboardActive = keyboard === false ? false : true;
-    _isScrollActive = scroll === false ? false : true;
-    _isTouchActive = touch === false ? false : true;
+    ft_variables._areLinksActive = links === false ? false : true;
+    ft_variables._isKeyboardActive = keyboard === false ? false : true;
+    ft_variables._isScrollActive = scroll === false ? false : true;
+    ft_variables._isTouchActive = touch === false ? false : true;
   }
 
   function _disableNavigation(links, keyboard, scroll, touch) {
-    _areLinksActive = links === false ? true : false;
-    _isKeyboardActive = keyboard === false ? true : false;
-    _isScrollActive = scroll === false ? true : false;
-    _isTouchActive = touch === false ? true : false;
+    ft_variables._areLinksActive = links === false ? true : false;
+    ft_variables._isKeyboardActive = keyboard === false ? true : false;
+    ft_variables._isScrollActive = scroll === false ? true : false;
+    ft_variables._isTouchActive = touch === false ? true : false;
   }
 
   function _setLinksNavigation(v) {
-    _areLinksActive = v === false ? false : true;
+    ft_variables._areLinksActive = v === false ? false : true;
   }
 
   function _setKeyboardNavigation(v) {
-    _isKeyboardActive = v === false ? false : true;
+    ft_variables._isKeyboardActive = v === false ? false : true;
   }
 
   function _setScrollNavigation(v) {
-    _isScrollActive = v === false ? false : true;
+    ft_variables._isScrollActive = v === false ? false : true;
   }
 
   function _setTouchNavigation(v) {
-    _isTouchActive = v === false ? false : true;
+    ft_variables._isTouchActive = v === false ? false : true;
   }
 
   function _setCrossDirection(v) {
-    if (_crossDirection !== v) {
-      _crossDirection = v === true ? true : false;
-      if (!Brav1Toolbox.hasClass(ftContainer, constants.CROSS_DIRECTION_CLASS) && _crossDirection === true) {
-        Brav1Toolbox.addClass(ftContainer, constants.CROSS_DIRECTION_CLASS);
-      } else if (Brav1Toolbox.hasClass(ftContainer, constants.CROSS_DIRECTION_CLASS) && _crossDirection !== true) {
-        Brav1Toolbox.removeClass(ftContainer, constants.CROSS_DIRECTION_CLASS);
+    if (ft_variables._crossDirection !== v) {
+      ft_variables._crossDirection = v === true ? true : false;
+      if (!Brav1Toolbox.hasClass(ft_variables.ftContainer, ft_constants.CROSS_DIRECTION_CLASS) && ft_variables._crossDirection === true) {
+        Brav1Toolbox.addClass(ft_variables.ftContainer, ft_constants.CROSS_DIRECTION_CLASS);
+      } else if (Brav1Toolbox.hasClass(ft_variables.ftContainer, ft_constants.CROSS_DIRECTION_CLASS) && ft_variables._crossDirection !== true) {
+        Brav1Toolbox.removeClass(ft_variables.ftContainer, ft_constants.CROSS_DIRECTION_CLASS);
       }
-      if (defaultProgress) {
-        if (!Brav1Toolbox.hasClass(defaultProgress, constants.CROSS_DIRECTION_CLASS) && _crossDirection === true) {
-          Brav1Toolbox.addClass(defaultProgress, constants.CROSS_DIRECTION_CLASS);
-        } else if (Brav1Toolbox.hasClass(defaultProgress, constants.CROSS_DIRECTION_CLASS) && _crossDirection !== true) {
-          Brav1Toolbox.removeClass(defaultProgress, constants.CROSS_DIRECTION_CLASS);
+      if (ft_variables.defaultProgress) {
+        if (!Brav1Toolbox.hasClass(ft_variables.defaultProgress, ft_constants.CROSS_DIRECTION_CLASS) && ft_variables._crossDirection === true) {
+          Brav1Toolbox.addClass(ft_variables.defaultProgress, ft_constants.CROSS_DIRECTION_CLASS);
+        } else if (Brav1Toolbox.hasClass(ft_variables.defaultProgress, ft_constants.CROSS_DIRECTION_CLASS) && ft_variables._crossDirection !== true) {
+          Brav1Toolbox.removeClass(ft_variables.defaultProgress, ft_constants.CROSS_DIRECTION_CLASS);
         }
       }
       //
@@ -2451,12 +2388,12 @@ var Flowtime = (function ()
   }
 
   function _setScrollTheSection(v) {
-    if (_scrollTheSection !== v) {
-      _scrollTheSection = v === true ? true : false;
-      if (!Brav1Toolbox.hasClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS) && _scrollTheSection === true) {
-        Brav1Toolbox.addClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS);
-      } else if (Brav1Toolbox.hasClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS) && _scrollTheSection !== true) {
-        Brav1Toolbox.removeClass(ftContainer, constants.SCROLL_THE_SECTION_CLASS);
+    if (ft_variables._scrollTheSection !== v) {
+      ft_variables._scrollTheSection = v === true ? true : false;
+      if (!Brav1Toolbox.hasClass(ft_variables.ftContainer, ft_constants.SCROLL_THE_SECTION_CLASS) && ft_variables._scrollTheSection === true) {
+        Brav1Toolbox.addClass(ft_variables.ftContainer, ft_constants.SCROLL_THE_SECTION_CLASS);
+      } else if (Brav1Toolbox.hasClass(ft_variables.ftContainer, ft_constants.SCROLL_THE_SECTION_CLASS) && ft_variables._scrollTheSection !== true) {
+        Brav1Toolbox.removeClass(ft_variables.ftContainer, ft_constants.SCROLL_THE_SECTION_CLASS);
       }
       //
       NavigationMatrix.updateOffsets();
@@ -2465,36 +2402,36 @@ var Flowtime = (function ()
   }
 
   function _setDebouncingDelay(n) {
-    _debouncingDelay = n;
+    ft_variables._debouncingDelay = n;
   }
 
   function _setTransitionTime(milliseconds) {
-    _transitionTime = milliseconds;
-    ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "" + _transitionTime + "ms";
+    ft_variables._transitionTime = milliseconds;
+    ft_variables.ftContainer.style[Brav1Toolbox.getPrefixed("transition-duration")] = "" + ft_variables._transitionTime + "ms";
   }
 
   function _getTransitionTime() {
-    return _transitionTime;
+    return ft_variables._transitionTime;
   }
 
   function _setMomentumScrollDelay(milliseconds) {
-    _momentumScrollDelay = milliseconds;
+    ft_variables._momentumScrollDelay = milliseconds;
   }
 
   function _setNavigationCallback(f) {
-    _navigationCallback = f;
+    ft_variables._navigationCallback = f;
   }
 
   function _setRememberSectionsStatus(v) {
-    _rememberSectionsStatus = v === true ? true : false;
+    ft_variables._rememberSectionsStatus = v === true ? true : false;
   }
 
   function _setRememberSectionsLastPage(v) {
-    _rememberSectionsLastPage = v === true ? true : false;
+    ft_variables._rememberSectionsLastPage = v === true ? true : false;
   }
 
   function _setToSectionsFromPages(v) {
-    _toSectionsFromPages = v === false ? false : true;
+    ft_variables._toSectionsFromPages = v === false ? false : true;
   }
 
   /**

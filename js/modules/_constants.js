@@ -1,4 +1,4 @@
-get_constants = function () {
+get_ft_constants = function () {
   return {
     // application constants
     CROSS_DIRECTION_CLASS        : "ft-cross",

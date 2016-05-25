@@ -13,6 +13,7 @@ module.exports = function(grunt) {
             src: [
               'js/brav1toolbox.js',
               'js/modules/_constants.js',
+              'js/modules/_variables.js',
               'js/flowtime.js'
             ]
           }
